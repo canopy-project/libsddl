@@ -303,6 +303,7 @@ static SDDLVarDecl _sddl_parse_control(RedString decl, RedJsonObject def)
     return out;
 }
 
+#if 0
 static SDDLVarDecl _sddl_parse_class(RedString decl, RedJsonObject def)
 {
     SDDLVarDecl cls;
@@ -360,7 +361,6 @@ static SDDLVarDecl _sddl_parse_class(RedString decl, RedJsonObject def)
         }
         else if (RedString_Equals(key, "authors"))
         {
-            int j;
             if (!RedJsonValue_IsArray(val))
             {
                 printf("Expected list for authors\n");
@@ -391,6 +391,7 @@ static SDDLVarDecl _sddl_parse_class(RedString decl, RedJsonObject def)
 
     return cls;
 }
+#endif
 
 SDDLDocument sddl_ref_document(SDDLDocument doc)
 {
