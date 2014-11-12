@@ -32,51 +32,28 @@ struct SDDLParseResult_t
 struct SDDLDocument_t
 {
     unsigned refcnt;
-    unsigned numAuthors;
+    unsigned num_authors;
     char **authors;
     char *description;
-    unsigned numProperties;
-    SDDLProperty *properties;
+    unsigned num_vars;
+    SDDLVarDecl *vars;
 };
 
-struct SDDLProperty_t
+struct SDDLVarDecl_t
 {
     char *name;
-    SDDLPropertyTypeEnum type;
     char *description;
     void *extra;
-};
-
-struct SDDLControl_t
-{
-    struct SDDLProperty_t base;
-    SDDLDatatypeEnum datatype;
-    SDDLControlTypeEnum controlType;
-    double *maxValue;
-    double *minValue;
-    SDDLNumericDisplayHintEnum numericDisplayHint;
-    char *regex;
-    char *units;
-};
-
-struct SDDLSensor_t
-{
-    struct SDDLProperty_t base;
     SDDLDatatypeEnum datatype;
     double *maxValue;
     double *minValue;
-    SDDLNumericDisplayHintEnum numericDisplayHint;
+    SDDLNumericDisplayHintEnum numeric_display_hint;
     char *regex;
     char *units;
-};
-
-struct SDDLClass_t
-{
-    struct SDDLProperty_t base;
-    unsigned numAuthors;
-    char **authors;
-    unsigned numProperties;
-    SDDLProperty *properties;
+    unsigned struct_num_members;
+    SDDLVarDecl *struct_members;
+    unsigned array_num_elements;
+    SDDLVarDecl array_element;
     RedJsonObject json;
 };
 
@@ -154,27 +131,14 @@ static SDDLDatatypeEnum _datatype_from_string(const char *sz)
     return SDDL_DATATYPE_INVALID;
 }
 
-static SDDLControlTypeEnum _control_type_from_string(const char *sz)
+static SDDLVarDecl _sddl_parse_control(RedString decl, RedJsonObject def)
 {
-    if (!strcmp(sz, "parameter"))
-    {
-        return SDDL_CONTROL_TYPE_PARAMETER;
-    }
-    else if (!strcmp(sz, "trigger"))
-    {
-        return SDDL_CONTROL_TYPE_TRIGGER;
-    }
-    return SDDL_CONTROL_TYPE_INVALID;
-}
-
-static SDDLControl _sddl_parse_control(RedString decl, RedJsonObject def)
-{
-    SDDLControl out;
+    SDDLVarDecl out;
     unsigned numKeys;
     unsigned i;
     char **keysArray;
 
-    out = calloc(1, sizeof(struct SDDLControl_t));
+    out = calloc(1, sizeof(struct SDDLVarDecl_t));
     if (!out)
     {
         return NULL;
@@ -182,15 +146,13 @@ static SDDLControl _sddl_parse_control(RedString decl, RedJsonObject def)
 
     RedStringList split = RedString_Split(decl, ' ');
     RedString name = RedStringList_GetString(split, 1);
-    out->base.name = RedString_strdup(RedString_GetChars(name));
+    out->name = RedString_strdup(RedString_GetChars(name));
     RedStringList_Free(split);
 
-    out->base.type = SDDL_PROPERTY_TYPE_CONTROL;
-    out->base.extra = NULL;
-    out->base.description = RedString_strdup("");
-    out->controlType = SDDL_CONTROL_TYPE_PARAMETER;
+    out->extra = NULL;
+    out->description = RedString_strdup("");
     out->datatype = SDDL_DATATYPE_FLOAT32;
-    out->numericDisplayHint = SDDL_NUMERIC_DISPLAY_HINT_NORMAL;
+    out->numeric_display_hint = SDDL_NUMERIC_DISPLAY_HINT_NORMAL;
     out->units = RedString_strdup("");
 
     numKeys = RedJsonObject_NumItems(def);
@@ -201,23 +163,7 @@ static SDDLControl _sddl_parse_control(RedString decl, RedJsonObject def)
         RedJsonValue val = RedJsonObject_Get(def, keysArray[i]);
         RedString key = RedString_New(keysArray[i]);
 
-        if (RedString_Equals(key, "control-type"))
-        {
-            char *controlTypeString;
-            if (!RedJsonValue_IsString(val))
-            {
-                printf("control-type must be string\n");
-                return NULL;
-            }
-            controlTypeString = RedJsonValue_GetString(val);
-            out->controlType = _control_type_from_string(controlTypeString);
-            if (out->controlType == SDDL_CONTROL_TYPE_INVALID)
-            {
-                printf("invalid control-type %s\n", controlTypeString);
-                return NULL;
-            }
-        }
-        else if (RedString_Equals(key, "datatype"))
+        if (RedString_Equals(key, "datatype"))
         {
             char *datatypeString;
             if (!RedJsonValue_IsString(val))
@@ -242,9 +188,9 @@ static SDDLControl _sddl_parse_control(RedString decl, RedJsonObject def)
                 return NULL;
             }
             description = RedJsonValue_GetString(val);
-            free(out->base.description);
-            out->base.description = RedString_strdup(description);
-            if (!out->base.description)
+            free(out->description);
+            out->description = RedString_strdup(description);
+            if (!out->description)
             {
                 printf("OOM duplicating description string\n");
                 return NULL;
@@ -307,8 +253,8 @@ static SDDLControl _sddl_parse_control(RedString decl, RedJsonObject def)
                 return NULL;
             }
             displayHintString = RedJsonValue_GetString(val);
-            out->numericDisplayHint = _display_hint_from_string(displayHintString);
-            if (out->numericDisplayHint == SDDL_NUMERIC_DISPLAY_HINT_INVALID)
+            out->numeric_display_hint = _display_hint_from_string(displayHintString);
+            if (out->numeric_display_hint == SDDL_NUMERIC_DISPLAY_HINT_INVALID)
             {
                 printf("invalid numeric-display-hint %s", displayHintString);
                 return NULL;
@@ -357,182 +303,14 @@ static SDDLControl _sddl_parse_control(RedString decl, RedJsonObject def)
     return out;
 }
 
-static SDDLSensor _sddl_parse_sensor(RedString decl, RedJsonObject def)
+static SDDLVarDecl _sddl_parse_class(RedString decl, RedJsonObject def)
 {
-    SDDLSensor out;
+    SDDLVarDecl cls;
     unsigned numKeys;
     unsigned i;
     char **keysArray;
 
-    out = calloc(1, sizeof(struct SDDLSensor_t));
-    if (!out)
-    {
-        return NULL;
-    }
-
-    RedStringList split = RedString_Split(decl, ' ');
-    RedString name = RedStringList_GetString(split, 1);
-    out->base.name = RedString_strdup(RedString_GetChars(name));
-    RedStringList_Free(split);
-
-    out->base.type = SDDL_PROPERTY_TYPE_SENSOR;
-    out->base.extra = NULL;
-    /* TODO: set defaults */
-
-    numKeys = RedJsonObject_NumItems(def);
-    keysArray = RedJsonObject_NewKeysArray(def);
-
-    for (i = 0; i < numKeys; i++)
-    {
-        RedJsonValue val = RedJsonObject_Get(def, keysArray[i]);
-        RedString key = RedString_New(keysArray[i]);
-
-        if (RedString_Equals(key, "datatype"))
-        {
-            char *datatypeString;
-            if (!RedJsonValue_IsString(val))
-            {
-                printf("datatype must be string\n");
-                return NULL;
-            }
-            datatypeString = RedJsonValue_GetString(val);
-            out->datatype = _datatype_from_string(datatypeString);
-            if (out->datatype == SDDL_DATATYPE_INVALID)
-            {
-                printf("invalid datatype %s\n", datatypeString);
-                return NULL;
-            }
-        }
-        else if (RedString_Equals(key, "description"))
-        {
-            char *description;
-            if (!RedJsonValue_IsString(val))
-            {
-                printf("description must be string\n");
-                return NULL;
-            }
-            description = RedJsonValue_GetString(val);
-            out->base.description = RedString_strdup(description);
-            if (!out->base.description)
-            {
-                printf("OOM duplicating description string\n");
-                return NULL;
-            }
-        }
-        else if (RedString_Equals(key, "max-value"))
-        {
-            if (RedJsonValue_IsNull(val))
-            {
-                out->maxValue = NULL;
-            }
-            else
-            {
-                double * pMaxValue;
-                if (!RedJsonValue_IsNumber(val))
-                {
-                    printf("max-value must be number or null\n");
-                    return NULL;
-                }
-                pMaxValue = malloc(sizeof(double));
-                if (!pMaxValue)
-                {
-                    printf("OOM allocating max-value\n");
-                    return NULL;
-                }
-                *pMaxValue = RedJsonValue_GetNumber(val);
-                out->maxValue = pMaxValue;
-            }
-        }
-        else if (RedString_Equals(key, "min-value"))
-        {
-            if (RedJsonValue_IsNull(val))
-            {
-                out->minValue = NULL;
-            }
-            else
-            {
-                double * pMinValue;
-                if (!RedJsonValue_IsNumber(val))
-                {
-                    printf("min-value must be number or null\n");
-                    return NULL;
-                }
-                pMinValue = malloc(sizeof(double));
-                if (!pMinValue)
-                {
-                    printf("OOM allocating min-value\n");
-                    return NULL;
-                }
-                *pMinValue = RedJsonValue_GetNumber(val);
-                out->minValue = pMinValue;
-            }
-        }
-        else if (RedString_Equals(key, "numeric-display-hint"))
-        {
-            char *displayHintString;
-            if (!RedJsonValue_IsString(val))
-            {
-                printf("datatype must be string\n");
-                return NULL;
-            }
-            displayHintString = RedJsonValue_GetString(val);
-            out->numericDisplayHint = _display_hint_from_string(displayHintString);
-            if (out->numericDisplayHint == SDDL_NUMERIC_DISPLAY_HINT_INVALID)
-            {
-                printf("invalid numeric-display-hint %s", displayHintString);
-                return NULL;
-            }
-        }
-        else if (RedString_Equals(key, "regex"))
-        {
-            char *regex;
-            if (!RedJsonValue_IsString(val))
-            {
-                printf("regex must be string\n");
-                return NULL;
-            }
-            regex = RedJsonValue_GetString(val);
-            out->regex = RedString_strdup(regex);
-            if (!out->regex)
-            {
-                printf("OOM duplicating regex string\n");
-                return NULL;
-            }
-        }
-        else if (RedString_Equals(key, "units"))
-        {
-            char *units;
-            if (!RedJsonValue_IsString(val))
-            {
-                printf("units must be string\n");
-                return NULL;
-            }
-            units = RedJsonValue_GetString(val);
-            out->units = RedString_strdup(units);
-            if (!out->units)
-            {
-                printf("OOM duplicating units string\n");
-                return NULL;
-            }
-        }
-        else
-        {
-            printf("Unexpected field: %s", RedString_GetChars(key));
-        }
-        RedString_Free(key);
-    }
-    
-    return out;
-}
-
-static SDDLClass _sddl_parse_class(RedString decl, RedJsonObject def)
-{
-    SDDLClass cls;
-    unsigned numKeys;
-    unsigned i;
-    char **keysArray;
-
-    cls = calloc(1, sizeof(struct SDDLClass_t));
+    cls = calloc(1, sizeof(struct SDDLVarDecl_t));
     if (!cls)
     {
         return NULL;
@@ -540,12 +318,11 @@ static SDDLClass _sddl_parse_class(RedString decl, RedJsonObject def)
 
     RedStringList split = RedString_Split(decl, ' ');
     RedString name = RedStringList_GetString(split, 1);
-    cls->base.name = RedString_strdup(RedString_GetChars(name));
+    cls->name = RedString_strdup(RedString_GetChars(name));
     RedStringList_Free(split);
 
-    cls->base.type = SDDL_PROPERTY_TYPE_CLASS;
-    cls->base.extra = NULL;
-    cls->base.description = RedString_strdup("");
+    cls->extra = NULL;
+    cls->description = RedString_strdup("");
     cls->json = def;
     /* TODO: set defaults */
 
@@ -564,72 +341,22 @@ static SDDLClass _sddl_parse_class(RedString decl, RedJsonObject def)
                 return NULL;
             }
             RedJsonObject obj = RedJsonValue_GetObject(val);
-            SDDLControl control = _sddl_parse_control(key, obj);
+            SDDLVarDecl control = _sddl_parse_control(key, obj);
             if (!control)
             {
                 return NULL;
             }
-            cls->numProperties++;
-            cls->properties = realloc(
-                    cls->properties, 
-                    cls->numProperties*
-                    sizeof(SDDLProperty));
-            if (!cls->properties)
+            cls->struct_num_members++;
+            cls->struct_members = realloc(
+                    cls->struct_members, 
+                    cls->struct_num_members*
+                    sizeof(SDDLVarDecl));
+            if (!cls->struct_members)
             {
-                printf("OOM expanding cls->properties\n");
+                printf("OOM expanding cls->struct_members\n");
                 return NULL;
             }
-            cls->properties[cls->numProperties - 1] = SDDL_PROPERTY(control);
-        }
-        else if  (RedString_BeginsWith(key, "sensor "))
-        {
-            if (!RedJsonValue_IsObject(val))
-            {
-                printf("Expected object for sensor definition\n");
-                return NULL;
-            }
-            RedJsonObject obj = RedJsonValue_GetObject(val);
-            SDDLSensor sensor = _sddl_parse_sensor(key, obj);
-            if (!sensor)
-            {
-                return NULL;
-            }
-            cls->numProperties++;
-            cls->properties = realloc(
-                    cls->properties, 
-                    cls->numProperties*
-                    sizeof(SDDLProperty));
-            if (!cls->properties)
-            {
-                printf("OOM expanding cls->properties\n");
-                return NULL;
-            }
-            cls->properties[cls->numProperties - 1] = SDDL_PROPERTY(sensor);
-        }
-        else if  (RedString_BeginsWith(key, "class "))
-        {
-            if (!RedJsonValue_IsObject(val))
-            {
-                printf("Expected object for class definition\n");
-                return NULL;
-            }
-            RedJsonObject obj = RedJsonValue_GetObject(val);
-            SDDLClass class = _sddl_parse_class(key, obj);
-            if (!class)
-            {
-                return NULL;
-            }
-            cls->numProperties++;
-            cls->properties = realloc(
-                    cls->properties, 
-                    cls->numProperties*
-                    sizeof(SDDLProperty));
-            if (!cls->properties)
-            {
-                printf("OOM expanding cls->properties\n");
-                return NULL;
-            }
-            cls->properties[cls->numProperties - 1] = SDDL_PROPERTY(class);
+            cls->struct_members[cls->struct_num_members - 1] = control;
         }
         else if (RedString_Equals(key, "authors"))
         {
@@ -638,31 +365,6 @@ static SDDLClass _sddl_parse_class(RedString decl, RedJsonObject def)
             {
                 printf("Expected list for authors\n");
                 return NULL;
-            }
-            
-            RedJsonArray authorList = RedJsonValue_GetArray(val);
-            cls->numAuthors = RedJsonArray_NumItems(authorList);
-            cls->authors = calloc(cls->numAuthors, sizeof(char *));
-            if (!cls->authors)
-            {
-                printf("OOM - Failed to allocate author list\n");
-                return NULL;
-            }
-            for (j = 0; j < cls->numAuthors; j++)
-            {
-                char * author;
-                if (!RedJsonArray_IsEntryString(authorList, j))
-                {
-                    printf("Expected string for authors list entry\n");
-                    return NULL;
-                }
-                author = RedJsonArray_GetEntryString(authorList, j);
-                cls->authors[j] = RedString_strdup(author);
-                if (!cls->authors)
-                {
-                    printf("OOM - Failed to duplicate author\n");
-                    return NULL;
-                }
             }
         }
         else if (RedString_Equals(key, "description"))
@@ -674,10 +376,10 @@ static SDDLClass _sddl_parse_class(RedString decl, RedJsonObject def)
                 return NULL;
             }
             description = RedJsonValue_GetString(val);
-            if (cls->base.description)
-                free(cls->base.description);
-            cls->base.description = RedString_strdup(description);
-            if (!cls->base.description)
+            if (cls->description)
+                free(cls->description);
+            cls->description = RedString_strdup(description);
+            if (!cls->description)
             {
                 printf("OOM duplicating description string\n");
                 return NULL;
@@ -814,72 +516,22 @@ SDDLParseResult sddl_parse(const char *sddl)
                 return NULL;
             }
             RedJsonObject obj = RedJsonValue_GetObject(val);
-            SDDLControl control = _sddl_parse_control(key, obj);
+            SDDLVarDecl control = _sddl_parse_control(key, obj);
             if (!control)
             {
                 return NULL;
             }
-            doc->numProperties++;
-            doc->properties = realloc(
-                    doc->properties, 
-                    doc->numProperties*
-                    sizeof(SDDLProperty));
-            if (!doc->properties)
+            doc->num_vars++;
+            doc->vars = realloc(
+                    doc->vars, 
+                    doc->num_vars*
+                    sizeof(SDDLVarDecl));
+            if (!doc->vars)
             {
-                printf("OOM expanding doc->properties\n");
+                printf("OOM expanding doc->vars\n");
                 return NULL;
             }
-            doc->properties[doc->numProperties - 1] = SDDL_PROPERTY(control);
-        }
-        else if  (RedString_BeginsWith(key, "sensor "))
-        {
-            if (!RedJsonValue_IsObject(val))
-            {
-                printf("Expected object for sensor definition\n");
-                return NULL;
-            }
-            RedJsonObject obj = RedJsonValue_GetObject(val);
-            SDDLSensor sensor = _sddl_parse_sensor(key, obj);
-            if (!sensor)
-            {
-                return NULL;
-            }
-            doc->numProperties++;
-            doc->properties = realloc(
-                    doc->properties, 
-                    doc->numProperties*
-                    sizeof(SDDLProperty));
-            if (!doc->properties)
-            {
-                printf("OOM expanding doc->properties\n");
-                return NULL;
-            }
-            doc->properties[doc->numProperties - 1] = SDDL_PROPERTY(sensor);
-        }
-        else if  (RedString_BeginsWith(key, "class "))
-        {
-            if (!RedJsonValue_IsObject(val))
-            {
-                printf("Expected object for class definition\n");
-                return NULL;
-            }
-            RedJsonObject obj = RedJsonValue_GetObject(val);
-            SDDLClass class = _sddl_parse_class(key, obj);
-            if (!class)
-            {
-                return NULL;
-            }
-            doc->numProperties++;
-            doc->properties = realloc(
-                    doc->properties, 
-                    doc->numProperties*
-                    sizeof(SDDLProperty));
-            if (!doc->properties)
-            {
-                printf("OOM expanding doc->properties\n");
-                return NULL;
-            }
-            doc->properties[doc->numProperties - 1] = SDDL_PROPERTY(class);
+            doc->vars[doc->num_vars - 1] = control;
         }
         else if (RedString_Equals(key, "authors"))
         {
@@ -892,14 +544,14 @@ SDDLParseResult sddl_parse(const char *sddl)
             }
             
             RedJsonArray authorList = RedJsonValue_GetArray(val);
-            doc->numAuthors = RedJsonArray_NumItems(authorList);
-            doc->authors = calloc(doc->numAuthors, sizeof(char *));
+            doc->num_authors = RedJsonArray_NumItems(authorList);
+            doc->authors = calloc(doc->num_authors, sizeof(char *));
             if (!doc->authors)
             {
                 printf("OOM - Failed to allocate author list\n");
                 return NULL;
             }
-            for (j = 0; j < doc->numAuthors; j++)
+            for (j = 0; j < doc->num_authors; j++)
             {
                 if (!RedJsonArray_IsEntryString(authorList, j))
                 {
@@ -996,7 +648,7 @@ const char * sddl_document_description(SDDLDocument doc)
 
 unsigned sddl_document_num_authors(SDDLDocument doc)
 {
-    return doc->numAuthors;
+    return doc->num_authors;
 }
 
 const char * sddl_document_author(SDDLDocument doc, unsigned index)
@@ -1004,212 +656,114 @@ const char * sddl_document_author(SDDLDocument doc, unsigned index)
     return doc->authors[index];
 }
 
-unsigned sddl_document_num_properties(SDDLDocument doc)
+unsigned sddl_document_num_vars(SDDLDocument doc)
 {
-    return doc->numProperties;
+    return doc->num_vars;
 }
 
-SDDLProperty sddl_document_property(SDDLDocument doc, unsigned index) 
+SDDLVarDecl sddl_document_var_by_idx(SDDLDocument doc, unsigned index) 
 {
-    return doc->properties[index];
+    return doc->vars[index];
 }
 
-SDDLProperty sddl_document_lookup_property(SDDLDocument doc, const char*propName) 
+SDDLVarDecl sddl_document_var_by_name(SDDLDocument doc, const char* name) 
 {
     unsigned i;
-    for (i = 0; i < sddl_document_num_properties(doc); i++)
+    for (i = 0; i < sddl_document_num_vars(doc); i++)
     {
-        if (!strcmp(doc->properties[i]->name, propName))
+        if (!strcmp(doc->vars[i]->name,  name))
         {
-            return doc->properties[i];
-        }
-    }
-    return NULL;
-}
-SDDLClass sddl_document_lookup_class(SDDLDocument doc, const char*propName) 
-{
-    SDDLProperty prop = sddl_document_lookup_property(doc, propName);
-    if (!prop)
-        return NULL;
-    if (!sddl_is_class(prop))
-        return NULL;
-    return SDDL_CLASS(prop);
-}
-
-bool sddl_is_control(SDDLProperty prop)
-{
-    return (prop->type == SDDL_PROPERTY_TYPE_CONTROL);
-}
-bool sddl_is_sensor(SDDLProperty prop)
-{
-    return (prop->type == SDDL_PROPERTY_TYPE_SENSOR);
-}
-bool sddl_is_class(SDDLProperty prop)
-{
-    return (prop->type == SDDL_PROPERTY_TYPE_CLASS);
-}
-
-SDDLControl SDDL_CONTROL(SDDLProperty prop)
-{
-    assert(sddl_is_control(prop));
-    return (SDDLControl)prop;
-}
-SDDLSensor SDDL_SENSOR(SDDLProperty prop)
-{
-    assert(sddl_is_sensor(prop));
-    return (SDDLSensor)prop;
-}
-SDDLClass SDDL_CLASS(SDDLProperty prop)
-{
-    assert(sddl_is_class(prop));
-    return (SDDLClass)prop;
-}
-
-const char * sddl_control_name(SDDLControl control)
-{
-    return control->base.name;
-}
-SDDLControlTypeEnum sddl_control_type(SDDLControl control)
-{
-    return control->controlType;
-}
-SDDLDatatypeEnum sddl_control_datatype(SDDLControl control)
-{
-    return control->datatype;
-}
-const char * sddl_control_description(SDDLControl control)
-{
-    return control->base.description;
-}
-const double * sddl_control_max_value(SDDLControl control)
-{
-    return control->maxValue;
-}
-const double * sddl_control_min_value(SDDLControl control)
-{
-    return control->minValue;
-}
-SDDLNumericDisplayHintEnum sddl_control_numeric_display_hint(SDDLControl control)
-{
-    return control->numericDisplayHint;
-}
-const char * sddl_control_regex(SDDLControl control)
-{
-    return control->regex;
-}
-const char * sddl_control_units(SDDLControl control)
-{
-    return control->units;
-}
-
-void sddl_control_set_extra(SDDLControl control, void *extra)
-{
-    control->base.extra = extra;
-}
-void * sddl_control_extra(SDDLControl control)
-{
-    return control->base.extra;
-}
-
-const char * sddl_sensor_name(SDDLSensor sensor)
-{
-    return sensor->base.name;
-}
-SDDLDatatypeEnum sddl_sensor_datatype(SDDLSensor sensor)
-{
-    return sensor->datatype;
-}
-const char * sddl_sensor_description(SDDLSensor sensor)
-{
-    return sensor->base.description;
-}
-const double * sddl_sensor_max_value(SDDLSensor sensor)
-{
-    return sensor->maxValue;
-}
-const double * sddl_sensor_min_value(SDDLSensor sensor)
-{
-    return sensor->minValue;
-}
-SDDLNumericDisplayHintEnum sddl_sensor_numeric_display_hint(SDDLSensor sensor)
-{
-    return sensor->numericDisplayHint;
-}
-const char * sddl_sensor_regex(SDDLSensor sensor)
-{
-    return sensor->regex;
-}
-const char * sddl_sensor_units(SDDLSensor sensor)
-{
-    return sensor->units;
-}
-void sddl_sensor_set_extra(SDDLSensor sensor, void *extra)
-{
-    sensor->base.extra = extra;
-}
-void * sddl_sensor_extra(SDDLSensor sensor)
-{
-    return sensor->base.extra;
-}
-
-const char * sddl_class_name(SDDLClass cls)
-{
-    return cls->base.name;
-}
-RedJsonObject sddl_class_json(SDDLClass cls)
-{
-    return cls->json;
-}
-unsigned sddl_class_num_authors(SDDLClass cls)
-{
-    return cls->numAuthors;
-}
-const char * sddl_class_author(SDDLClass cls, unsigned index)
-{
-    return cls->authors[index];
-}
-const char * sddl_class_description(SDDLClass cls)
-{
-    return cls->base.description;
-}
-unsigned sddl_class_num_properties(SDDLClass cls)
-{
-    return cls->numProperties;
-}
-SDDLProperty sddl_class_property(SDDLClass cls, unsigned index) 
-{
-    return cls->properties[index];
-}
-
-SDDLProperty sddl_class_lookup_property(SDDLClass cls, const char*propName) 
-{
-    unsigned i;
-    for (i = 0; i < sddl_class_num_properties(cls); i++)
-    {
-        if (!strcmp(cls->properties[i]->name, propName))
-        {
-            return cls->properties[i];
+            return doc->vars[i];
         }
     }
     return NULL;
 }
 
-SDDLControl sddl_class_lookup_control(SDDLClass cls, const char*propName) 
+const char * sddl_var_name(SDDLVarDecl var)
 {
-    SDDLProperty prop = sddl_class_lookup_property(cls, propName);
-    if (!prop)
-        return NULL;
-    if (!sddl_is_control(prop))
-        return NULL;
-    return SDDL_CONTROL(prop);
+    return var->name;
 }
 
-SDDLSensor sddl_class_lookup_sensor(SDDLClass cls, const char*propName) 
+SDDLDatatypeEnum sddl_var_datatype(SDDLVarDecl var)
 {
-    SDDLProperty prop = sddl_class_lookup_property(cls, propName);
-    if (!prop)
-        return NULL;
-    if (!sddl_is_sensor(prop))
-        return NULL;
-    return SDDL_SENSOR(prop);
+    return var->datatype;
+}
+
+const char * sddl_var_description(SDDLVarDecl cls)
+{
+    return cls->description;
+}
+
+const double * sddl_var_max_value(SDDLVarDecl var)
+{
+    return var->maxValue;
+}
+
+const double * sddl_var_min_value(SDDLVarDecl var)
+{
+    return var->minValue;
+}
+
+SDDLNumericDisplayHintEnum sddl_var_numeric_display_hint(SDDLVarDecl var)
+{
+    return var->numeric_display_hint;
+}
+
+const char * sddl_var_regex(SDDLVarDecl var)
+{
+    return var->regex;
+}
+
+const char * sddl_var_units(SDDLVarDecl var)
+{
+    return var->units;
+}
+
+unsigned sddl_var_struct_num_members(SDDLVarDecl var)
+{
+    return var->struct_num_members;
+}
+
+SDDLVarDecl var_struct_member_by_idx(SDDLVarDecl var, unsigned index) 
+{
+    return var->struct_members[index];
+}
+
+SDDLVarDecl sddl_var_struct_member_by_name(SDDLVarDecl var, const char* name) 
+{
+    unsigned i;
+    for (i = 0; i < sddl_var_struct_num_members(var); i++)
+    {
+        if (!strcmp(var->struct_members[i]->name, name))
+        {
+            return var->struct_members[i];
+        }
+    }
+    return NULL;
+}
+
+unsigned sddl_var_array_num_elements(SDDLVarDecl var)
+{
+    assert(var->datatype == SDDL_DATATYPE_ARRAY);
+    return var->array_num_elements;
+}
+
+SDDLVarDecl sddl_var_array_element(SDDLVarDecl var)
+{
+    return var->array_element;
+}
+
+void sddl_var_set_extra(SDDLVarDecl var, void *extra)
+{
+    var->extra = extra;
+}
+
+void * sddl_var_extra(SDDLVarDecl var)
+{
+    return var->extra;
+}
+
+RedJsonObject sddl_var_json(SDDLVarDecl var)
+{
+    return var->json;
 }

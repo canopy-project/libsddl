@@ -87,11 +87,11 @@ void sddl_free_parse_result(SDDLParseResult result);
 const char * sddl_document_description(SDDLDocument doc);
 unsigned sddl_document_num_authors(SDDLDocument doc);
 const char * sddl_document_author(SDDLDocument doc, unsigned index);
-SDDLVarDecl sddl_document_lookup_property(SDDLDocument doc, const char*propName);
-SDDLVarDecl sddl_document_lookup_var(SDDLDocument doc, const char*propName);
 
 unsigned sddl_document_num_vars(SDDLDocument doc);
-SDDLVarDecl sddl_document_var(SDDLDocument doc, unsigned index);
+SDDLVarDecl sddl_document_var_by_idx(SDDLDocument doc, unsigned index);
+SDDLVarDecl sddl_document_var_by_name(SDDLDocument doc, const char *name);
+
 
 const char * sddl_var_name(SDDLVarDecl var);
 SDDLVarDeclTypeEnum sddl_var_type(SDDLVarDecl var);
