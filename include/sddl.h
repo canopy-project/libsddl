@@ -1,18 +1,16 @@
-/*
- * Copyright 2014 Gregory Prisament
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2014 SimpleThings, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 #ifndef SDDL_INCLUDED
 #define SDDL_INCLUDED
@@ -34,14 +32,6 @@ typedef enum {
 
 typedef enum
 {
-    SDDL_PROPERTY_TYPE_INVALID,
-    SDDL_PROPERTY_TYPE_CONTROL,
-    SDDL_PROPERTY_TYPE_SENSOR,
-    SDDL_PROPERTY_TYPE_CLASS
-} SDDLPropertyTypeEnum;
-
-typedef enum
-{
     SDDL_DATATYPE_INVALID,
     SDDL_DATATYPE_VOID,
     SDDL_DATATYPE_STRING,
@@ -54,15 +44,17 @@ typedef enum
     SDDL_DATATYPE_UINT32,
     SDDL_DATATYPE_FLOAT32,
     SDDL_DATATYPE_FLOAT64,
-    SDDL_DATATYPE_DATETIME
+    SDDL_DATATYPE_DATETIME,
+    SDDL_DATATYPE_STRUCT,
+    SDDL_DATATYPE_ARRAY,
 } SDDLDatatypeEnum;
 
 typedef enum
 {
-    SDDL_CONTROL_TYPE_INVALID,
-    SDDL_CONTROL_TYPE_PARAMETER,
-    SDDL_CONTROL_TYPE_TRIGGER
-} SDDLControlTypeEnum;
+    SDDL_DIRECTION_BIDIRECTIONAL,
+    SDDL_DIRECTION_OUTBOUND,
+    SDDL_DIRECTION_INBOUND
+} SDDLVarDeclTypeEnum;
 
 typedef enum
 {
@@ -75,13 +67,7 @@ typedef enum
 
 typedef struct SDDLDocument_t * SDDLDocument;
 
-typedef struct SDDLProperty_t * SDDLProperty;
-
-typedef struct SDDLControl_t * SDDLControl;
-
-typedef struct SDDLSensor_t * SDDLSensor;
-
-typedef struct SDDLClass_t * SDDLClass;
+typedef struct SDDLVarDecl_t * SDDLVarDecl;
 
 typedef struct SDDLParseResult_t * SDDLParseResult;
 
@@ -101,55 +87,32 @@ void sddl_free_parse_result(SDDLParseResult result);
 const char * sddl_document_description(SDDLDocument doc);
 unsigned sddl_document_num_authors(SDDLDocument doc);
 const char * sddl_document_author(SDDLDocument doc, unsigned index);
-SDDLProperty sddl_document_lookup_property(SDDLDocument doc, const char*propName);
-SDDLClass sddl_document_lookup_class(SDDLDocument doc, const char*propName);
+SDDLVarDecl sddl_document_lookup_property(SDDLDocument doc, const char*propName);
+SDDLVarDecl sddl_document_lookup_var(SDDLDocument doc, const char*propName);
 
-unsigned sddl_document_num_properties(SDDLDocument doc);
-SDDLProperty sddl_document_property(SDDLDocument doc, unsigned index);
+unsigned sddl_document_num_vars(SDDLDocument doc);
+SDDLVarDecl sddl_document_var(SDDLDocument doc, unsigned index);
 
-bool sddl_is_control(SDDLProperty prop);
-bool sddl_is_sensor(SDDLProperty prop);
-bool sddl_is_class(SDDLProperty prop);
+const char * sddl_var_name(SDDLVarDecl var);
+SDDLVarDeclTypeEnum sddl_var_type(SDDLVarDecl var);
+SDDLDatatypeEnum sddl_var_datatype(SDDLVarDecl var);
+const char * sddl_var_description(SDDLVarDecl var);
+const double * sddl_var_max_value(SDDLVarDecl var);
+const double * sddl_var_min_value(SDDLVarDecl var);
+SDDLNumericDisplayHintEnum sddl_var_numeric_display_hint(SDDLVarDecl var);
+const char * sddl_var_regex(SDDLVarDecl var);
+const char * sddl_var_units(SDDLVarDecl var);
 
-SDDLControl SDDL_CONTROL(SDDLProperty prop);
-SDDLSensor SDDL_SENSOR(SDDLProperty prop);
-SDDLClass SDDL_CLASS(SDDLProperty prop);
-#define SDDL_PROPERTY(v) ((SDDLProperty)(v))
+unsigned sddl_var_struct_num_members(SDDLVarDecl var);
+SDDLVarDecl sddl_var_struct_member_by_idx(SDDLVarDecl var, unsigned index);
+SDDLVarDecl sddl_var_struct_member_by_name(SDDLVarDecl var, const char *name);
 
-const char * sddl_control_name(SDDLControl control);
-SDDLControlTypeEnum sddl_control_type(SDDLControl control);
-SDDLDatatypeEnum sddl_control_datatype(SDDLControl control);
-const char * sddl_control_description(SDDLControl control);
-const double * sddl_control_max_value(SDDLControl control);
-const double * sddl_control_min_value(SDDLControl control);
-SDDLNumericDisplayHintEnum sddl_control_numeric_display_hint(SDDLControl control);
-const char * sddl_control_regex(SDDLControl control);
-const char * sddl_control_units(SDDLControl control);
+unsigned sddl_var_array_num_elements(SDDLVarDecl var);
+SDDLVarDecl sddl_var_array_element(SDDLVarDecl var);
 
-void sddl_control_set_extra(SDDLControl control, void *extra);
-void * sddl_control_extra(SDDLControl control);
+void sddl_var_set_extra(SDDLVarDecl var, void *extra);
+void * sddl_var_extra(SDDLVarDecl var);
 
-const char * sddl_sensor_name(SDDLSensor sensor);
-SDDLDatatypeEnum sddl_sensor_datatype(SDDLSensor sensor);
-const char * sddl_sensor_description(SDDLSensor sensor);
-const double * sddl_sensor_max_value(SDDLSensor sensor);
-const double * sddl_sensor_min_value(SDDLSensor sensor);
-SDDLNumericDisplayHintEnum sddl_sensor_numeric_display_hint(SDDLSensor sensor);
-const char * sddl_sensor_regex(SDDLSensor sensor);
-const char * sddl_sensor_units(SDDLSensor sensor);
-void sddl_sensor_set_extra(SDDLSensor sensor, void *extra);
-void * sddl_sensor_extra(SDDLSensor sensor);
-
-const char * sddl_class_name(SDDLClass cls);
-RedJsonObject sddl_class_json(SDDLClass cls);
-unsigned sddl_class_num_authors(SDDLClass cls);
-const char * sddl_class_author(SDDLClass cls, unsigned index);
-const char * sddl_class_description(SDDLClass cls);
-unsigned sddl_class_num_properties(SDDLClass cls);
-SDDLProperty sddl_class_property(SDDLClass cls, unsigned index);
-SDDLProperty sddl_class_lookup_property(SDDLClass cls, const char *name);
-SDDLControl sddl_class_lookup_control(SDDLClass cls, const char *name);
-SDDLSensor sddl_class_lookup_sensor(SDDLClass cls, const char *name);
-
+RedJsonObject sddl_var_json(SDDLVarDecl var);
 #endif
 
