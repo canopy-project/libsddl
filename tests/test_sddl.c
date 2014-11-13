@@ -14,18 +14,35 @@
 
 #include <sddl.h>
 #include <red_test.h>
+static void run_test1(RedTest test)
+{
+    SDDLParseResult result = sddl_load_and_parse("test1.sddl");
+    RedTest_Verify(test, "test1.sddl - Parsing OK", sddl_parse_result_ok(result));
+
+    SDDLDocument doc = sddl_parse_result_document(result);
+    RedTest_Verify(test, "test1.sddl - 0 vars", sddl_document_num_vars(doc) == 0);
+
+    sddl_free_parse_result(result);
+}
+
+static void run_test2(RedTest test)
+{
+    SDDLParseResult result = sddl_load_and_parse("test2.sddl");
+    RedTest_Verify(test, "test2.sddl - Parsing OK", sddl_parse_result_ok(result));
+
+    SDDLDocument doc = sddl_parse_result_document(result);
+    RedTest_Verify(test, "test2.sddl - 12 vars", sddl_document_num_vars(doc) == 12);
+
+    sddl_free_parse_result(result);
+}
 
 int main(int argc, const char *argv[])
 {
     RedTest test;
     test = RedTest_Begin(argv[0], NULL, NULL);
 
-    SDDLParseResult result = sddl_load_and_parse("test1.sddl");
-    RedTest_Verify(test, "test1.sddl - Parsing OK", sddl_parse_result_ok(result));
-
-    SDDLDocument doc = sddl_parse_result_document(result);
-    RedTest_Verify(test, "test1.sddl - 0 vars", sddl_document_num_vars(doc) == 0);
-    sddl_free_parse_result(result);
+    run_test1(test);
+    run_test2(test);
 
     return RedTest_End(test);
 }

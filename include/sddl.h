@@ -51,10 +51,18 @@ typedef enum
 
 typedef enum
 {
+    SDDL_DIRECTION_INVALID,
     SDDL_DIRECTION_BIDIRECTIONAL,
     SDDL_DIRECTION_OUTBOUND,
     SDDL_DIRECTION_INBOUND
-} SDDLVarDeclTypeEnum;
+} SDDLDirectionEnum;
+
+typedef enum
+{
+    SDDL_OPTIONALITY_INVALID,
+    SDDL_OPTIONALITY_OPTIONAL,
+    SDDL_OPTIONALITY_REQUIRED,
+} SDDLOptionalityEnum;
 
 typedef enum
 {
@@ -94,7 +102,6 @@ SDDLVarDecl sddl_document_var_by_name(SDDLDocument doc, const char *name);
 
 
 const char * sddl_var_name(SDDLVarDecl var);
-SDDLVarDeclTypeEnum sddl_var_type(SDDLVarDecl var);
 SDDLDatatypeEnum sddl_var_datatype(SDDLVarDecl var);
 const char * sddl_var_description(SDDLVarDecl var);
 const double * sddl_var_max_value(SDDLVarDecl var);

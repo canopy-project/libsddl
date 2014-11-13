@@ -131,7 +131,7 @@ static SDDLDatatypeEnum _datatype_from_string(const char *sz)
     return SDDL_DATATYPE_INVALID;
 }
 
-static SDDLVarDecl _sddl_parse_control(RedString decl, RedJsonObject def)
+static SDDLVarDecl _sddl_parse_var(RedString decl, RedJsonObject def)
 {
     SDDLVarDecl out;
     unsigned numKeys;
@@ -476,6 +476,210 @@ SDDLParseResult sddl_load_and_parse_file(FILE *file)
     return out;
 }
 
+typedef struct
+{
+    SDDLDatatypeEnum datatype;
+    SDDLOptionalityEnum optionality;
+    SDDLDirectionEnum direction;
+    char *name;
+} VarKeyInfo;
+
+typedef enum
+{
+    _KEY_TOKEN_TYPE_INVALID,
+    _KEY_TOKEN_TYPE_DATATYPE,
+    _KEY_TOKEN_TYPE_DIRECTION,
+    _KEY_TOKEN_TYPE_OPTIONALITY,
+    _KEY_TOKEN_TYPE_VAR_NAME,
+} _KeyTokenType;
+
+typedef struct
+{
+    _KeyTokenType type;
+    union
+    {
+        SDDLDatatypeEnum datatype;
+        SDDLOptionalityEnum optionality;
+        SDDLDirectionEnum direction;
+        char *name;
+    };
+} _KeyToken;
+
+_KeyToken _KeyTokenFromString(const char *s)
+{
+    _KeyToken out;
+    out.type = _KEY_TOKEN_TYPE_INVALID;
+
+    if (!strcmp(s, "void"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_VOID;
+    }
+    else if (!strcmp(s, "string"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_STRING;
+    }
+    else if (!strcmp(s, "bool"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_BOOL;
+    }
+    else if (!strcmp(s, "int8"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_INT8;
+    }
+    else if (!strcmp(s, "uint8"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_UINT8;
+    }
+    else if (!strcmp(s, "int16"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_INT16;
+    }
+    else if (!strcmp(s, "uint16"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_UINT16;
+    }
+    else if (!strcmp(s, "int32"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_INT32;
+    }
+    else if (!strcmp(s, "uint32"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_UINT32;
+    }
+    else if (!strcmp(s, "float32"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_FLOAT32;
+    }
+    else if (!strcmp(s, "float64"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_FLOAT64;
+    }
+    else if (!strcmp(s, "datetime"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DATATYPE;
+        out.datatype = SDDL_DATATYPE_STRING;
+    }
+
+    else if (!strcmp(s, "bidirectional"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DIRECTION;
+        out.direction = SDDL_DIRECTION_BIDIRECTIONAL;
+    }
+    else if (!strcmp(s, "inbound"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DIRECTION;
+        out.direction = SDDL_DIRECTION_INBOUND;
+    }
+    else if (!strcmp(s, "outbound"))
+    {
+        out.type = _KEY_TOKEN_TYPE_DIRECTION;
+        out.direction = SDDL_DIRECTION_OUTBOUND;
+    }
+
+    else if (!strcmp(s, "optional"))
+    {
+        out.type = _KEY_TOKEN_TYPE_OPTIONALITY;
+        out.optionality = SDDL_OPTIONALITY_OPTIONAL;
+    }
+    else if (!strcmp(s, "required"))
+    {
+        out.type = _KEY_TOKEN_TYPE_OPTIONALITY;
+        out.optionality = SDDL_OPTIONALITY_REQUIRED;
+    }
+
+    return out;
+}
+
+// True if the key declares a Cloud Variable, false otherwise
+bool _parse_var_key(SDDLParseResult result, const char *key, VarKeyInfo *out)
+{
+    RedStringList parts;
+    unsigned i;
+
+    parts = RedString_SplitChars(key, ' ');
+    if (RedStringList_NumStrings(parts) < 2)
+    {
+        return false;
+    }
+
+    out->datatype = SDDL_DATATYPE_INVALID;
+    out->optionality = SDDL_OPTIONALITY_INVALID;
+    out->direction = SDDL_DIRECTION_INVALID;
+    out->name = NULL;
+
+    for (i = 0; i < RedStringList_NumStrings(parts); i++)
+    {
+        const char *part;
+        _KeyToken token;
+        part = RedStringList_GetStringChars(parts, i);
+
+        token = _KeyTokenFromString(part);
+        switch (token.type)
+        {
+            case _KEY_TOKEN_TYPE_DATATYPE:
+            {
+                if (out->datatype != SDDL_DATATYPE_INVALID)
+                {
+                    RedStringList_AppendChars(result->errors, "Datatype already specified");
+                    return false;
+                }
+
+                out->datatype = token.datatype;
+                break;
+            }
+            case _KEY_TOKEN_TYPE_DIRECTION:
+            {
+                if (out->direction != SDDL_DIRECTION_INVALID)
+                {
+                    RedStringList_AppendChars(result->errors, "Direction already specified");
+                    return false;
+                }
+
+                out->direction = token.direction;
+                break;
+            }
+            case _KEY_TOKEN_TYPE_OPTIONALITY:
+            {
+                if (out->optionality != SDDL_OPTIONALITY_INVALID)
+                {
+                    RedStringList_AppendChars(result->errors, "Optionality already specified");
+                    return false;
+                }
+
+                out->optionality = token.optionality;
+                break;
+            }
+            default:
+            {
+                if (out->datatype == SDDL_DATATYPE_INVALID)
+                {
+                    RedStringList_AppendChars(result->errors, "Datatype or qualifier expected.");
+                    return false;
+                }
+                if (out->name != NULL)
+                {
+                    RedStringList_AppendChars(result->errors, "Variable name already specified.");
+                    return false;
+                }
+
+                out->name = RedString_strdup(part);
+            }
+        }
+    }
+    return true;
+}
+
 SDDLParseResult sddl_parse(const char *sddl)
 {
     RedJsonObject jsonObj;
@@ -509,83 +713,39 @@ SDDLParseResult sddl_parse(const char *sddl)
     {
         RedJsonValue val = RedJsonObject_Get(jsonObj, keysArray[i]);
         RedString key = RedString_New(keysArray[i]);
-        if (RedString_BeginsWith(key, "control "))
+        bool ok;
+        VarKeyInfo varKeyInfo;
+
+        ok =  _parse_var_key(result, RedString_GetChars(key), &varKeyInfo);
+        if (!ok)
         {
-            if (!RedJsonValue_IsObject(val))
-            {
-                printf("Expected object for control definition\n");
-                return NULL;
-            }
-            RedJsonObject obj = RedJsonValue_GetObject(val);
-            SDDLVarDecl control = _sddl_parse_control(key, obj);
-            if (!control)
-            {
-                return NULL;
-            }
-            doc->num_vars++;
-            doc->vars = realloc(
-                    doc->vars, 
-                    doc->num_vars*
-                    sizeof(SDDLVarDecl));
-            if (!doc->vars)
-            {
-                printf("OOM expanding doc->vars\n");
-                return NULL;
-            }
-            doc->vars[doc->num_vars - 1] = control;
+            return NULL;
         }
-        else if (RedString_Equals(key, "authors"))
+
+        if (!RedJsonValue_IsObject(val))
         {
-            char * author;
-            int j;
-            if (!RedJsonValue_IsArray(val))
-            {
-                printf("Expected list for authors\n");
-                return NULL;
-            }
-            
-            RedJsonArray authorList = RedJsonValue_GetArray(val);
-            doc->num_authors = RedJsonArray_NumItems(authorList);
-            doc->authors = calloc(doc->num_authors, sizeof(char *));
-            if (!doc->authors)
-            {
-                printf("OOM - Failed to allocate author list\n");
-                return NULL;
-            }
-            for (j = 0; j < doc->num_authors; j++)
-            {
-                if (!RedJsonArray_IsEntryString(authorList, j))
-                {
-                    printf("Expected string for authors list entry\n");
-                    return NULL;
-                }
-                author = RedJsonArray_GetEntryString(authorList, j);
-                doc->authors[j] = RedString_strdup(author);
-                if (!doc->authors)
-                {
-                    printf("OOM - Failed to duplicate author\n");
-                    return NULL;
-                }
-            }
+            RedStringList_AppendChars(result->errors, "Expected object for variable metadata");
+            return NULL;
         }
-        else if (RedString_Equals(key, "description"))
+
+        SDDLVarDecl var = _sddl_parse_var(key, RedJsonValue_GetObject(val));
+        if (!var)
         {
-            char *description;
-            if (!RedJsonValue_IsString(val))
-            {
-                printf("description must be string\n");
-                return NULL;
-            }
-            description = RedJsonValue_GetString(val);
-            if (doc->description)
-                free(doc->description);
-            doc->description = RedString_strdup(description);
-            if (!doc->description)
-            {
-                printf("OOM duplicating description string\n");
-                return NULL;
-            }
+            return NULL;
         }
+
+        doc->num_vars++;
+        doc->vars = realloc(
+                doc->vars, 
+                doc->num_vars*
+                sizeof(SDDLVarDecl));
+        if (!doc->vars)
+        {
+            printf("OOM expanding doc->vars\n");
+            return NULL;
+        }
+        doc->vars[doc->num_vars - 1] = var;
+
 
         RedString_Free(key);
     }

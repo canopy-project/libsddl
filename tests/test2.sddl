@@ -1,0 +1,15 @@
+/* Test basic types w/ default options */
+{
+    "void void_var" : {},
+    "string string_var" : {},
+    "bool bool_var" : {},
+    "int8 int8_var" : {},
+    "uint8 uint8_var" : {},
+    "int16 int16_var" : {},
+    "uint16 uint16_var" : {},
+    "int32 int32_var" : {},
+    "uint32 uint32_var" : {},
+    "float32 float32_var" : {},
+    "float64 float64_var" : {},
+    "datetime datetime_var" : {},
+}
