@@ -52,9 +52,10 @@ typedef enum
 typedef enum
 {
     SDDL_DIRECTION_INVALID,
-    SDDL_DIRECTION_BIDIRECTIONAL,
-    SDDL_DIRECTION_OUTBOUND,
-    SDDL_DIRECTION_INBOUND
+    SDDL_DIRECTION_OMITTED,
+    SDDL_DIRECTION_INOUT,
+    SDDL_DIRECTION_IN,
+    SDDL_DIRECTION_OUT
 } SDDLDirectionEnum;
 
 typedef enum
@@ -121,5 +122,8 @@ void sddl_var_set_extra(SDDLVarDecl var, void *extra);
 void * sddl_var_extra(SDDLVarDecl var);
 
 RedJsonObject sddl_var_json(SDDLVarDecl var);
+
+// Sets *outName to point to a newly allocated string
+SDDLResultEnum sddl_parse_decl(const char *decl, SDDLDirectionEnum *outDirection, SDDLDatatypeEnum *outDatatype, char **outName);
 #endif
 

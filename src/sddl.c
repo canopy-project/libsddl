@@ -1,18 +1,16 @@
-/*
- * Copyright 2014 Gregory Prisament
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright 2014 SimpleThings, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 #include "sddl.h"
 #include "red_string.h"
 #include "red_json.h"
@@ -571,20 +569,20 @@ _KeyToken _KeyTokenFromString(const char *s)
         out.datatype = SDDL_DATATYPE_STRING;
     }
 
-    else if (!strcmp(s, "bidirectional"))
+    else if (!strcmp(s, "inout"))
     {
         out.type = _KEY_TOKEN_TYPE_DIRECTION;
-        out.direction = SDDL_DIRECTION_BIDIRECTIONAL;
+        out.direction = SDDL_DIRECTION_INOUT;
     }
-    else if (!strcmp(s, "inbound"))
+    else if (!strcmp(s, "in"))
     {
         out.type = _KEY_TOKEN_TYPE_DIRECTION;
-        out.direction = SDDL_DIRECTION_INBOUND;
+        out.direction = SDDL_DIRECTION_IN;
     }
-    else if (!strcmp(s, "outbound"))
+    else if (!strcmp(s, "out"))
     {
         out.type = _KEY_TOKEN_TYPE_DIRECTION;
-        out.direction = SDDL_DIRECTION_OUTBOUND;
+        out.direction = SDDL_DIRECTION_OUT;
     }
 
     else if (!strcmp(s, "optional"))
@@ -927,4 +925,21 @@ void * sddl_var_extra(SDDLVarDecl var)
 RedJsonObject sddl_var_json(SDDLVarDecl var)
 {
     return var->json;
+}
+
+SDDLResultEnum sddl_parse_decl(const char *decl, SDDLDirectionEnum *outDirection, SDDLDatatypeEnum *outDatatype, char **outName)
+{
+    VarKeyInfo info;
+    bool ok;
+    SDDLParseResult result = _new_parse_result();
+    ok = _parse_var_key(result, decl, &info);
+    if (!ok)
+    {
+        return SDDL_ERROR_PARSING;
+    }
+    *outDirection = info.direction;
+    *outDatatype = info.datatype;
+    *outName = RedString_strdup(info.name);
+    sddl_free_parse_result(result);
+    return SDDL_SUCCESS;
 }
