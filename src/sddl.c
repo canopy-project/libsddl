@@ -79,6 +79,23 @@ static SDDLNumericDisplayHintEnum _display_hint_from_string(const char *sz)
     return SDDL_NUMERIC_DISPLAY_HINT_INVALID;
 }
 
+static const char * _display_hint_to_string(SDDLNumericDisplayHintEnum v)
+{
+    switch (v)
+    {
+        case SDDL_NUMERIC_DISPLAY_HINT_NORMAL:
+            return "normal";
+        case SDDL_NUMERIC_DISPLAY_HINT_PERCENTAGE:
+            return "percentage";
+        case SDDL_NUMERIC_DISPLAY_HINT_HEX:
+            return "hex";
+        case SDDL_NUMERIC_DISPLAY_HINT_SCIENTIFIC:
+            return "scientific";
+        default:
+            return "invalid";
+    }
+}
+
 static SDDLDatatypeEnum _datatype_from_string(const char *sz)
 {
     if (!strcmp(sz, "void"))
@@ -482,6 +499,8 @@ typedef struct
     SDDLDatatypeEnum datatype;
     SDDLOptionalityEnum optionality;
     SDDLDirectionEnum direction;
+    SDDLDatatypeEnum array_datatype;
+    size_t array_num_elements;
     char *name;
 } VarKeyInfo;
 
@@ -502,75 +521,91 @@ typedef struct
         SDDLDatatypeEnum datatype;
         SDDLOptionalityEnum optionality;
         SDDLDirectionEnum direction;
+        
         char *name;
     };
+    // only for arrays:
+    SDDLDatatypeEnum array_datatype;
+    size_t array_num_elements;
 } _KeyToken;
+
+static bool _KeyTokenMaybeParseDatatype(_KeyToken *out, const char *s, SDDLDatatypeEnum datatype)
+{
+    const char *datatypeString = sddl_datatype_string(datatype);
+    size_t datatypeStringLen = strlen(datatypeString);
+
+    if (!strncmp(s, datatypeString, datatypeStringLen))
+    {
+        // beginning matches
+        
+        // is it an exact match?
+        if (s[datatypeStringLen] == 0)
+        {
+            // exact match.  Basic datatype.
+            out->type = _KEY_TOKEN_TYPE_DATATYPE;
+            out->datatype = datatype;
+            return true;
+        }
+
+        // is it an array?  Is the following character "["
+        if (s[datatypeStringLen] == '[')
+        {
+            char *end;
+            long int arraySize;
+            arraySize = strtol(&(s[datatypeStringLen+1]), &end, 10);
+            if (end == &(s[datatypeStringLen+1]))
+            {
+                // ERROR: no number found:
+                return false;
+            }
+            else if (*end != ']')
+            {
+                // ERROR: doesn't end with closing brace
+                return false;
+            }
+
+            out->type = _KEY_TOKEN_TYPE_DATATYPE;
+            out->datatype = SDDL_DATATYPE_ARRAY;
+            out->array_datatype = datatype;
+            out->array_num_elements = arraySize;
+
+            return true;
+        }
+    }
+    return false;
+}
 
 _KeyToken _KeyTokenFromString(const char *s)
 {
     _KeyToken out;
     out.type = _KEY_TOKEN_TYPE_INVALID;
 
-    if (!strcmp(s, "void"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_VOID;
-    }
-    else if (!strcmp(s, "string"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_STRING;
-    }
-    else if (!strcmp(s, "bool"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_BOOL;
-    }
-    else if (!strcmp(s, "int8"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_INT8;
-    }
-    else if (!strcmp(s, "uint8"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_UINT8;
-    }
-    else if (!strcmp(s, "int16"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_INT16;
-    }
-    else if (!strcmp(s, "uint16"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_UINT16;
-    }
-    else if (!strcmp(s, "int32"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_INT32;
-    }
-    else if (!strcmp(s, "uint32"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_UINT32;
-    }
-    else if (!strcmp(s, "float32"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_FLOAT32;
-    }
-    else if (!strcmp(s, "float64"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_FLOAT64;
-    }
-    else if (!strcmp(s, "datetime"))
-    {
-        out.type = _KEY_TOKEN_TYPE_DATATYPE;
-        out.datatype = SDDL_DATATYPE_STRING;
-    }
+    if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_VOID))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_STRING))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_BOOL))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_INT8))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_UINT8))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_INT16))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_UINT16))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_INT32))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_UINT32))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_FLOAT32))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_FLOAT64))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_DATETIME))
+        return out;
+    else if (_KeyTokenMaybeParseDatatype(&out, s, SDDL_DATATYPE_STRUCT))
+        return out;
 
     else if (!strcmp(s, "inout"))
     {
@@ -616,7 +651,7 @@ bool _parse_var_key(SDDLParseResult result, const char *key, VarKeyInfo *out)
 
     out->datatype = SDDL_DATATYPE_INVALID;
     out->optionality = SDDL_OPTIONALITY_INVALID;
-    out->direction = SDDL_DIRECTION_INVALID;
+    out->direction = SDDL_DIRECTION_INHERIT;
     out->name = NULL;
 
     for (i = 0; i < RedStringList_NumStrings(parts); i++)
@@ -637,11 +672,17 @@ bool _parse_var_key(SDDLParseResult result, const char *key, VarKeyInfo *out)
                 }
 
                 out->datatype = token.datatype;
+
+                if (out->datatype == SDDL_DATATYPE_ARRAY)
+                {
+                    out->array_num_elements = token.array_num_elements;
+                    out->array_datatype = token.array_datatype;
+                }
                 break;
             }
             case _KEY_TOKEN_TYPE_DIRECTION:
             {
-                if (out->direction != SDDL_DIRECTION_INVALID)
+                if (out->direction != SDDL_DIRECTION_INHERIT)
                 {
                     RedStringList_AppendChars(result->errors, "Direction already specified");
                     return false;
@@ -944,6 +985,11 @@ SDDLResultEnum sddl_parse_decl(
     *outDirection = info.direction;
     *outDatatype = info.datatype;
     *outName = RedString_strdup(info.name);
+    if (info.datatype == SDDL_DATATYPE_ARRAY)
+    {
+        *outArrayElementDatatype = info.array_datatype;
+        *outArraySize = info.array_num_elements;
+    }
     sddl_free_parse_result(result);
     return SDDL_SUCCESS;
 }
@@ -969,12 +1015,85 @@ SDDLDirectionEnum sddl_var_concrete_direction(SDDLVarDecl var)
     return var->direction;
 }
 
+RedJsonObject _construct_definition_object(SDDLVarDecl var)
+{
+    RedJsonObject out;
+    out = RedJsonObject_New();
+    if (!out)
+    {
+        return out;
+    }
+
+    if (var->datatype == SDDL_DATATYPE_STRUCT)
+    {
+        unsigned i;
+        // recursively handle structure members
+        for (i = 0; i < var->struct_num_members; i++)
+        {
+            SDDLVarDecl member = var->struct_members[i];
+            RedJsonObject memberJsonObj;
+            memberJsonObj = _construct_definition_object(member);
+            if (!memberJsonObj)
+            {
+                return NULL;
+            }
+
+            RedJsonObject_SetObject(out, member->decl_string, memberJsonObj);
+        }
+    }
+
+    if (var->minValue != NULL)
+    {
+        RedJsonObject_SetNumber(out, "min-value", *(var->minValue));
+    }
+    if (var->maxValue != NULL)
+    {
+        RedJsonObject_SetNumber(out, "max-value", *(var->maxValue));
+    }
+    if (var->description != NULL)
+    {
+        RedJsonObject_SetString(out, "description", var->description);
+    }
+    if (var->regex != NULL)
+    {
+        RedJsonObject_SetString(out, "regex", var->regex);
+    }
+    if (var->units != NULL)
+    {
+        RedJsonObject_SetString(out, "units", var->units);
+    }
+    if (var->numeric_display_hint != SDDL_NUMERIC_DISPLAY_HINT_INVALID)
+    {
+        RedJsonObject_SetString(out, "numeric-display-hint", 
+                _display_hint_to_string(var->numeric_display_hint));
+    }
+    return out;
+}
+
 char * _construct_decl_string(SDDLVarDecl var)
 {
-    return RedString_PrintfToNewChars("%s %s %s", 
-            sddl_direction_string(var->direction),
-            sddl_datatype_string(var->datatype),
-            var->name);
+    RedStringList s = RedStringList_New();
+
+    if (var->direction != SDDL_DIRECTION_INHERIT)
+    {
+        RedStringList_AppendChars(s, sddl_direction_string(var->direction));
+    }
+
+    if (var->datatype == SDDL_DATATYPE_ARRAY)
+    {
+        RedStringList_AppendPrintf(s, "%s[%d] %s", 
+                sddl_datatype_string(var->array_datatype),
+                var->array_num_elements,
+                var->name);
+    }
+    else
+    {
+        RedStringList_AppendPrintf(s, "%s %s", 
+                sddl_datatype_string(var->datatype),
+                var->name);
+    }
+
+    return RedStringList_JoinToNewChars(s, " ");
 }
 
 SDDLVarDecl sddl_var_new_basic(
@@ -999,6 +1118,12 @@ SDDLVarDecl sddl_var_new_basic(
 
     out->decl_string = _construct_decl_string(out);
     if (!out->decl_string)
+    {
+        return NULL;
+    }
+
+    out->json = _construct_definition_object(out);
+    if (!out->json)
     {
         return NULL;
     }
@@ -1036,9 +1161,70 @@ SDDLVarDecl sddl_var_new_array(
         return NULL;
     }
 
+    out->json = _construct_definition_object(out);
+    if (!out->json)
+    {
+        return NULL;
+    }
     // TODO: other defaults?
 
     return out;
+}
+
+SDDLVarDecl sddl_var_new_struct(
+        SDDLDirectionEnum direction, 
+        const char *name)
+{
+    SDDLVarDecl out;
+    out = calloc(1, sizeof(struct SDDLVarDecl_t));
+    if (!out)
+    {
+        return NULL;
+    }
+
+    out->name = RedString_strdup(name);
+    if (!out->name)
+    {
+        return NULL;
+    }
+    out->datatype = SDDL_DATATYPE_STRUCT;
+    out->direction = direction;
+
+    out->decl_string = _construct_decl_string(out);
+    if (!out->decl_string)
+    {
+        return NULL;
+    }
+
+    out->json = _construct_definition_object(out);
+    if (!out->json)
+    {
+        return NULL;
+    }
+    // TODO: other defaults?
+
+    return out;
+}
+
+// true on success
+bool sddl_var_struct_add_member(SDDLVarDecl strct, SDDLVarDecl member)
+{
+    strct->struct_num_members++;
+    strct->struct_members = realloc(
+            strct->struct_members, 
+            strct->struct_num_members*
+            sizeof(SDDLVarDecl));
+    if (!strct->struct_members)
+    {
+        return false;
+    }
+    strct->struct_members[strct->struct_num_members - 1] = member; // TODO: ref?
+
+    // reconstruct definition object
+    // TODO: It is inefficient that we do this every time a member is added.
+    strct->json = _construct_definition_object(strct);
+
+    return true;
 }
 
 bool sddl_var_is_basic(SDDLVarDecl var)
@@ -1119,6 +1305,8 @@ const char * sddl_datatype_string(SDDLDatatypeEnum datatype)
             return "uint16";
         case SDDL_DATATYPE_UINT32:
             return "uint32";
+        case SDDL_DATATYPE_STRUCT:
+            return "struct";
         default:
             return "invalid_datatype";
     }
