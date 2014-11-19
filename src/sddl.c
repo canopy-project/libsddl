@@ -40,9 +40,11 @@ struct SDDLDocument_t
 struct SDDLVarDecl_t
 {
     char *name;
+    char *decl_string;
     char *description;
     void *extra;
     SDDLDatatypeEnum datatype;
+    SDDLDirectionEnum direction;
     double *maxValue;
     double *minValue;
     SDDLNumericDisplayHintEnum numeric_display_hint;
@@ -51,8 +53,9 @@ struct SDDLVarDecl_t
     unsigned struct_num_members;
     SDDLVarDecl *struct_members;
     unsigned array_num_elements;
-    SDDLVarDecl array_element;
+    SDDLDatatypeEnum array_datatype;
     RedJsonObject json;
+    SDDLVarDecl parent;
 };
 
 static SDDLNumericDisplayHintEnum _display_hint_from_string(const char *sz)
@@ -907,11 +910,6 @@ unsigned sddl_var_array_num_elements(SDDLVarDecl var)
     return var->array_num_elements;
 }
 
-SDDLVarDecl sddl_var_array_element(SDDLVarDecl var)
-{
-    return var->array_element;
-}
-
 void sddl_var_set_extra(SDDLVarDecl var, void *extra)
 {
     var->extra = extra;
@@ -927,7 +925,13 @@ RedJsonObject sddl_var_json(SDDLVarDecl var)
     return var->json;
 }
 
-SDDLResultEnum sddl_parse_decl(const char *decl, SDDLDirectionEnum *outDirection, SDDLDatatypeEnum *outDatatype, char **outName)
+SDDLResultEnum sddl_parse_decl(
+        const char *decl, 
+        SDDLDirectionEnum *outDirection, 
+        SDDLDatatypeEnum *outDatatype, 
+        char **outName,
+        SDDLDatatypeEnum *outArrayElementDatatype,
+        size_t *outArraySize)
 {
     VarKeyInfo info;
     bool ok;
@@ -942,4 +946,179 @@ SDDLResultEnum sddl_parse_decl(const char *decl, SDDLDirectionEnum *outDirection
     *outName = RedString_strdup(info.name);
     sddl_free_parse_result(result);
     return SDDL_SUCCESS;
+}
+
+SDDLDirectionEnum sddl_var_direction(SDDLVarDecl var)
+{
+    return var->direction;
+}
+
+SDDLDirectionEnum sddl_var_concrete_direction(SDDLVarDecl var)
+{
+    if (var->direction == SDDL_DIRECTION_INHERIT)
+    {
+        if (var->parent)
+        {
+            return sddl_var_concrete_direction(var->parent);
+        }
+        else
+        {
+            return SDDL_DIRECTION_INOUT;
+        }
+    }
+    return var->direction;
+}
+
+char * _construct_decl_string(SDDLVarDecl var)
+{
+    return RedString_PrintfToNewChars("%s %s %s", 
+            sddl_direction_string(var->direction),
+            sddl_datatype_string(var->datatype),
+            var->name);
+}
+
+SDDLVarDecl sddl_var_new_basic(
+        SDDLDatatypeEnum datatype, 
+        SDDLDirectionEnum direction, 
+        const char *name)
+{
+    SDDLVarDecl out;
+    out = calloc(1, sizeof(struct SDDLVarDecl_t));
+    if (!out)
+    {
+        return NULL;
+    }
+
+    out->name = RedString_strdup(name);
+    if (!out->name)
+    {
+        return NULL;
+    }
+    out->datatype = datatype;
+    out->direction = direction;
+
+    out->decl_string = _construct_decl_string(out);
+    if (!out->decl_string)
+    {
+        return NULL;
+    }
+    // TODO: other defaults?
+
+    return out;
+}
+
+SDDLVarDecl sddl_var_new_array(
+        SDDLDatatypeEnum childDatatype, 
+        size_t numItems, 
+        SDDLDirectionEnum direction, 
+        const char *name)
+{
+    SDDLVarDecl out;
+    out = calloc(1, sizeof(struct SDDLVarDecl_t));
+    if (!out)
+    {
+        return NULL;
+    }
+
+    out->name = RedString_strdup(name);
+    if (!out->name)
+    {
+        return NULL;
+    }
+    out->datatype = SDDL_DATATYPE_ARRAY;
+    out->array_datatype = childDatatype;
+    out->array_num_elements = numItems;
+    out->direction = direction;
+
+    out->decl_string = _construct_decl_string(out);
+    if (!out->decl_string)
+    {
+        return NULL;
+    }
+
+    // TODO: other defaults?
+
+    return out;
+}
+
+bool sddl_var_is_basic(SDDLVarDecl var)
+{
+    return sddl_datatype_is_basic(var->datatype);
+}
+
+bool sddl_datatype_is_basic(SDDLDatatypeEnum datatype)
+{
+    switch (datatype)
+    {
+        case SDDL_DATATYPE_DATETIME:
+        case SDDL_DATATYPE_FLOAT32:
+        case SDDL_DATATYPE_FLOAT64:
+        case SDDL_DATATYPE_INT8:
+        case SDDL_DATATYPE_INT16:
+        case SDDL_DATATYPE_INT32:
+        case SDDL_DATATYPE_STRING:
+        case SDDL_DATATYPE_UINT8:
+        case SDDL_DATATYPE_UINT16:
+        case SDDL_DATATYPE_UINT32:
+        case SDDL_DATATYPE_VOID:
+        {
+            return true;
+        }
+        default:
+        {
+            return false;
+        }
+    }
+}
+
+const char *sddl_var_decl_string(SDDLVarDecl var)
+{
+    return var->decl_string;
+}
+
+const char * sddl_direction_string(SDDLDirectionEnum direction)
+{
+    switch (direction)
+    {
+        case SDDL_DIRECTION_IN:
+            return "in";
+        case SDDL_DIRECTION_OUT:
+            return "out";
+        case SDDL_DIRECTION_INOUT:
+            return "inout";
+        default:
+            return "invalid_direction";
+    }
+}
+const char * sddl_datatype_string(SDDLDatatypeEnum datatype)
+{
+    switch (datatype)
+    {
+        case SDDL_DATATYPE_VOID:
+            return "void";
+        case SDDL_DATATYPE_BOOL:
+            return "bool";
+        case SDDL_DATATYPE_DATETIME:
+            return "datetime";
+        case SDDL_DATATYPE_FLOAT32:
+            return "float32";
+        case SDDL_DATATYPE_FLOAT64:
+            return "float64";
+        case SDDL_DATATYPE_INT8:
+            return "int8";
+        case SDDL_DATATYPE_INT16:
+            return "int16";
+        case SDDL_DATATYPE_INT32:
+            return "int32";
+        case SDDL_DATATYPE_STRING:
+            return "string";
+        case SDDL_DATATYPE_UINT8:
+            return "uint8";
+        case SDDL_DATATYPE_UINT16:
+            return "uint16";
+        case SDDL_DATATYPE_UINT32:
+            return "uint32";
+        default:
+            return "invalid_datatype";
+    }
 }

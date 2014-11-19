@@ -52,7 +52,7 @@ typedef enum
 typedef enum
 {
     SDDL_DIRECTION_INVALID,
-    SDDL_DIRECTION_OMITTED,
+    SDDL_DIRECTION_INHERIT,
     SDDL_DIRECTION_INOUT,
     SDDL_DIRECTION_IN,
     SDDL_DIRECTION_OUT
@@ -111,12 +111,14 @@ SDDLNumericDisplayHintEnum sddl_var_numeric_display_hint(SDDLVarDecl var);
 const char * sddl_var_regex(SDDLVarDecl var);
 const char * sddl_var_units(SDDLVarDecl var);
 
+SDDLDirectionEnum sddl_var_direction(SDDLVarDecl var);
+SDDLDirectionEnum sddl_var_concrete_direction(SDDLVarDecl var);
+
 unsigned sddl_var_struct_num_members(SDDLVarDecl var);
 SDDLVarDecl sddl_var_struct_member_by_idx(SDDLVarDecl var, unsigned index);
 SDDLVarDecl sddl_var_struct_member_by_name(SDDLVarDecl var, const char *name);
 
 unsigned sddl_var_array_num_elements(SDDLVarDecl var);
-SDDLVarDecl sddl_var_array_element(SDDLVarDecl var);
 
 void sddl_var_set_extra(SDDLVarDecl var, void *extra);
 void * sddl_var_extra(SDDLVarDecl var);
@@ -124,6 +126,31 @@ void * sddl_var_extra(SDDLVarDecl var);
 RedJsonObject sddl_var_json(SDDLVarDecl var);
 
 // Sets *outName to point to a newly allocated string
-SDDLResultEnum sddl_parse_decl(const char *decl, SDDLDirectionEnum *outDirection, SDDLDatatypeEnum *outDatatype, char **outName);
+SDDLResultEnum sddl_parse_decl(
+        const char *decl, 
+        SDDLDirectionEnum *outDirection, 
+        SDDLDatatypeEnum *outDatatype, 
+        char **outName,
+        SDDLDatatypeEnum *outArrayElementDatatype,
+        size_t *outArraySize);
+
+// Create new Cloud Variable Declaration for a basic variable with default
+// properties.
+SDDLVarDecl sddl_var_new_basic(
+        SDDLDatatypeEnum datatype, 
+        SDDLDirectionEnum direction, 
+        const char *name);
+
+SDDLVarDecl sddl_var_new_basic(SDDLDatatypeEnum datatype, SDDLDirectionEnum direction, const char *name);
+SDDLVarDecl sddl_var_new_array(SDDLDatatypeEnum childDatatype, size_t numItems, SDDLDirectionEnum direction, const char *name);
+
+bool sddl_var_is_basic(SDDLVarDecl var);
+bool sddl_datatype_is_basic(SDDLDatatypeEnum datatype);
+
+const char *sddl_var_decl_string(SDDLVarDecl var);
+
+const char * sddl_direction_string(SDDLDirectionEnum direction);
+const char * sddl_datatype_string(SDDLDatatypeEnum datatype);
+
 #endif
 
