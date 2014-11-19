@@ -1050,6 +1050,7 @@ bool sddl_datatype_is_basic(SDDLDatatypeEnum datatype)
 {
     switch (datatype)
     {
+        case SDDL_DATATYPE_BOOL:
         case SDDL_DATATYPE_DATETIME:
         case SDDL_DATATYPE_FLOAT32:
         case SDDL_DATATYPE_FLOAT64:
