@@ -15,7 +15,7 @@
 #ifndef SDDL_INCLUDED
 #define SDDL_INCLUDED
 
-#include "red_json.h"
+#include <red_json.h>
 
 #include <stdbool.h>
 #include <stdio.h>
