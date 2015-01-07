@@ -15,7 +15,7 @@
 #ifndef SDDL_INCLUDED
 #define SDDL_INCLUDED
 
-#include "red_json.h"
+#include <red_json.h>
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -143,6 +143,8 @@ SDDLVarDecl sddl_var_new_basic(
 
 SDDLVarDecl sddl_var_new_basic(SDDLDatatypeEnum datatype, SDDLDirectionEnum direction, const char *name);
 SDDLVarDecl sddl_var_new_array(SDDLDatatypeEnum childDatatype, size_t numItems, SDDLDirectionEnum direction, const char *name);
+SDDLVarDecl sddl_var_new_struct(SDDLDirectionEnum direction, const char *name);
+bool sddl_var_struct_add_member(SDDLVarDecl strct, SDDLVarDecl member);
 
 bool sddl_var_is_basic(SDDLVarDecl var);
 bool sddl_datatype_is_basic(SDDLDatatypeEnum datatype);
