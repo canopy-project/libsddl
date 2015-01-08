@@ -482,13 +482,18 @@ SDDLParseResult sddl_load_and_parse_file(FILE *file)
 {
     /* Read entire file into memory */
     long filesize;
+    size_t readsize;
     char *buffer;
     SDDLParseResult out;
     fseek(file, 0, SEEK_END);
     filesize = ftell(file); 
     fseek(file, 0, SEEK_SET);
     buffer = calloc(1, filesize+1);
-    fread(buffer, 1, filesize, file);
+    readsize = fread(buffer, 1, filesize, file);
+    if (readsize != filesize)
+    {
+        return NULL;
+    }
     out = sddl_parse(buffer);
     free(buffer);
     return out;
