@@ -15,6 +15,10 @@
 #ifndef SDDL_INCLUDED
 #define SDDL_INCLUDED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <red_json.h>
 
 #include <stdbool.h>
@@ -153,6 +157,10 @@ const char *sddl_var_decl_string(SDDLVarDecl var);
 
 const char * sddl_direction_string(SDDLDirectionEnum direction);
 const char * sddl_datatype_string(SDDLDatatypeEnum datatype);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 
